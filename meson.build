@@ -288,7 +288,7 @@ build_setjmp = get_option('setjmp').require(
 
 # Determine whether we should support the C++ unwinding interface (_Unwind_*)
 support_cxx_exceptions = get_option('cxx_exceptions').require(
-    support_cxx_exceptions = host_machine.cpu_family() in [
+    host_machine.cpu_family() in [
         'aarch64',
         'arm',
         'mips',
