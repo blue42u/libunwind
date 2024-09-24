@@ -206,8 +206,8 @@ if not cc.has_function('getcontext')
 endif
 
 # Determine whether to build libunwind-coredump
-if get_option('coredump').auto()
-    build_coredump = host_machine.cpu_family() in [
+build_coredump = get_option('coredump').require(
+    host_machine.cpu_family() in [
         'aarch64',
         'arm',
         'mips',
@@ -218,20 +218,15 @@ if get_option('coredump').auto()
         'riscv32',
         'riscv64',
         'loongarch64',
-    ] and host_machine.system() != 'windows'
-else
-    build_coredump = get_option('coredump').enabled()
-endif
+    ] and host_machine.system() != 'windows',
+    error_message: 'libunwind-coredump is only supported on particular non-Windows architectures',
+).allowed()
 
 # Determine whether to build libunwind-ptrace
-if get_option('ptrace').auto()
-    build_ptrace = cfg.has('HAVE_SYS_PTRACE_H')
-else
-    build_ptrace = get_option('ptrace').enabled()
-endif
-if build_ptrace and not cfg.has('HAVE_SYS_PTRACE_H')
-    error('-Dptrace=enabled but ptrace not supported on target')
-endif
+build_ptrace = get_option('ptrace').require(
+    cfg.has('HAVE_SYS_PTRACE_H'),
+    error_message: 'libunwind-ptrace requires <sys/ptrace.h>',
+).allowed()
 
 # Extra constant checks if we're building libunwind-ptrace
 if build_ptrace
@@ -280,21 +275,19 @@ if build_ptrace
 endif
 
 # Determine whether we're building libunwind-nto
-if get_option('nto').auto()
-    build_nto = cc.has_header('sys/neutrino.h')
-else
-    build_nto = get_option('nto').enabled()
-endif
+build_nto = get_option('nto').require(
+    cc.has_header('sys/neutrino.h'),
+    error_message: 'libunwind-nto requires <sys/neutrino.h>',
+).allowed()
 
 # Determine whether we're building libunwind-setjmp
-if get_option('setjmp').auto()
-    build_setjmp = not unw_remote_only
-else
-    build_setjmp = get_option('setjmp').enabled()
-endif
+build_setjmp = get_option('setjmp').require(
+    not unw_remote_only,
+    error_message: 'libunwind-setjmp only allowed if not a remote-only build',
+).allowed()
 
 # Determine whether we should support the C++ unwinding interface (_Unwind_*)
-if get_option('cxx_exceptions').auto()
+support_cxx_exceptions = get_option('cxx_exceptions').require(
     support_cxx_exceptions = host_machine.cpu_family() in [
         'aarch64',
         'arm',
@@ -304,10 +297,9 @@ if get_option('cxx_exceptions').auto()
         'x86_64',
         's390x',
         'loongarch64',
-    ]
-else
-    support_cxx_exceptions = get_option('cxx_exceptions').enabled()
-endif
+    ],
+    error_message: 'C++ exception interface only supported on certain architectures',
+).allowed()
 
 # Propagate other options through to the code as #defines
 if get_option('weak_backtrace')
@@ -316,15 +308,11 @@ endif
 if get_option('per_thread_cache')
     cfg.set('HAVE__CACHE_PER_THREAD', 1)
 endif
-if not unw_remote_only
-    if get_option('debug_frame').enabled()
-        cfg.set('CONFIG_DEBUG_FRAME', 1)
-    elif get_option('debug_frame').auto() and host_machine.cpu_family() in [
-        'arm',
-        'aarch64',
-    ]
-        cfg.set('CONFIG_DEBUG_FRAME', 1)
-    endif
+if not unw_remote_only and get_option('debug_frame').require(
+    host_machine.cpu_family() in ['arm', 'aarch64'],
+    error_message: 'debug_frame only supports certain architectures',
+).allowed()
+    cfg.set('CONFIG_DEBUG_FRAME', 1)
 endif
 if get_option('block_signals') and host_machine.system() != 'windows'
     cfg.set('CONFIG_BLOCK_SIGNALS', 1)
