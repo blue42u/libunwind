@@ -207,6 +207,9 @@ endif
 
 # Determine whether to build libunwind-coredump
 build_coredump = get_option('coredump').require(
+    host_machine.system() != 'windows',
+    error_message: 'not supported on windows',
+).require(
     host_machine.cpu_family() in [
         'aarch64',
         'arm',
@@ -218,14 +221,14 @@ build_coredump = get_option('coredump').require(
         'riscv32',
         'riscv64',
         'loongarch64',
-    ] and host_machine.system() != 'windows',
-    error_message: 'libunwind-coredump is only supported on particular non-Windows architectures',
+    ],
+    error_message: 'only supported on certain architectures',
 ).allowed()
 
 # Determine whether to build libunwind-ptrace
 build_ptrace = get_option('ptrace').require(
     cfg.has('HAVE_SYS_PTRACE_H'),
-    error_message: 'libunwind-ptrace requires <sys/ptrace.h>',
+    error_message: 'requires <sys/ptrace.h>',
 ).allowed()
 
 # Extra constant checks if we're building libunwind-ptrace
@@ -277,18 +280,19 @@ endif
 # Determine whether we're building libunwind-nto
 build_nto = get_option('nto').require(
     cc.has_header('sys/neutrino.h'),
-    error_message: 'libunwind-nto requires <sys/neutrino.h>',
+    error_message: 'requires <sys/neutrino.h>',
 ).allowed()
 
 # Determine whether we're building libunwind-setjmp
 build_setjmp = get_option('setjmp').require(
     not unw_remote_only,
-    error_message: 'libunwind-setjmp only allowed if not a remote-only build',
+    error_message: 'only available with local unwinding',
 ).allowed()
 
 # Determine whether we should support the C++ unwinding interface (_Unwind_*)
-support_cxx_exceptions = get_option('cxx_exceptions').require(
-    host_machine.cpu_family() in [
+# Only enabled by default on well-known architectures
+support_cxx_exceptions = get_option('cxx_exceptions').disable_auto_if(
+    host_machine.cpu_family() not in [
         'aarch64',
         'arm',
         'mips',
@@ -298,7 +302,6 @@ support_cxx_exceptions = get_option('cxx_exceptions').require(
         's390x',
         'loongarch64',
     ],
-    error_message: 'C++ exception interface only supported on certain architectures',
 ).allowed()
 
 # Propagate other options through to the code as #defines
@@ -308,9 +311,11 @@ endif
 if get_option('per_thread_cache')
     cfg.set('HAVE__CACHE_PER_THREAD', 1)
 endif
-if not unw_remote_only and get_option('debug_frame').require(
-    host_machine.cpu_family() in ['arm', 'aarch64'],
-    error_message: 'debug_frame only supports certain architectures',
+if get_option('debug_frame').require(
+    not unw_remote_only,
+    error_message: 'only available with local unwinding',
+).disable_auto_if(  # Only enabled by default on ARM-based platforms
+    host_machine.cpu_family() not in ['arm', 'aarch64'],
 ).allowed()
     cfg.set('CONFIG_DEBUG_FRAME', 1)
 endif
